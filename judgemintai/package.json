@@ -1,0 +1,16 @@
+np{
+  "name": "judgemintai",
+  "version": "2.0.0",
+  "description": "Judges a whole hackathon or competition: checks every entry is real and follows the rules, spots copies, scores and ranks entries with reasons, lets judges decide, and pays the prizes through PayPal.",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "node --test test/backend.test.js test/competition.test.js test/toolkit.test.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT"
+}

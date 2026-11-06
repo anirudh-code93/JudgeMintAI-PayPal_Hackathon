@@ -1,0 +1,21 @@
+{
+  "servers": {
+    "paypal": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@paypal/mcp", "--tools=all"],
+      "env": {
+        "PAYPAL_ACCESS_TOKEN": "${input:paypal-access-token}",
+        "PAYPAL_ENVIRONMENT": "SANDBOX"
+      }
+    }
+  },
+  "inputs": [
+    {
+      "type": "promptString",
+      "id": "paypal-access-token",
+      "description": "PayPal SANDBOX access token. Create one with: node scripts/get-sandbox-token.mjs",
+      "password": true
+    }
+  ]
+}

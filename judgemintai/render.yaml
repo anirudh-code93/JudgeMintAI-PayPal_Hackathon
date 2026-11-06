@@ -1,0 +1,42 @@
+# Render Blueprint: deploys JudgeMintAI as a free web service.
+# Render dashboard -> New -> Blueprint -> pick your GitHub repo.
+services:
+  - type: web
+    name: judgemintai
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node server.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: LLM_API_KEY
+        sync: false
+      - key: LLM_BASE_URL
+        value: https://generativelanguage.googleapis.com/v1beta/openai
+      - key: LLM_MODEL
+        value: gemini-2.5-flash
+      - key: GITHUB_TOKEN
+        sync: false
+      - key: PAYPAL_CLIENT_ID
+        sync: false
+      - key: PAYPAL_CLIENT_SECRET
+        sync: false
+      - key: CERT_SECRET
+        generateValue: true
+      # The key for Judge mode. Render makes one: open this service's Environment tab to read it.
+      - key: ORGANIZER_KEY
+        generateValue: true
+      - key: MAX_PROJECTS_HARD
+        value: "30"
+      - key: MAX_PROJECTS_DEFAULT
+        value: "10"
+      - key: PAYPAL_VIA
+        value: auto
+      - key: ZAPIER_WEBHOOK_URL
+        sync: false
+      - key: ELASTIC_URL
+        sync: false
+      - key: ELASTIC_API_KEY
+        sync: false

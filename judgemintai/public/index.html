@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>JudgeMintAI</title>
+  <meta name="description" content="Audit one hackathon entry, or judge every entry of any hackathon or contest: real-or-fake checks, copy detection, ranking with reasons, and prize payouts through PayPal.">
+  <meta name="color-scheme" content="light">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%230F3A30'/%3E%3Cpath d='M9 16.5l5 5 9-11' fill='none' stroke='%23EEF2EC' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+
+  <!-- Fonts: Big Shoulders Display (headings, numbers) and Libre Franklin (text). Both are free (SIL OFL). -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800&family=Libre+Franklin:wght@400;500;600;700&display=swap">
+
+  <!-- AG Grid Community (sponsor tool) powers the findings table. If the CDN is blocked the page falls back to a plain table. -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@32/dist/styles/ag-grid.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@32/dist/styles/ag-theme-quartz.css">
+  <script src="https://cdn.jsdelivr.net/npm/ag-grid-community@32/dist/ag-grid-community.min.js" defer></script>
+
+  <link rel="stylesheet" href="/styles.css">
+  <script type="module" src="/js/app.js"></script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="top">
+    <div class="wrap top__in">
+      <a class="brand" href="/" data-link aria-label="JudgeMintAI home">
+        <svg class="brand__mark" viewBox="0 0 32 32" width="28" height="28" aria-hidden="true" focusable="false">
+          <circle cx="16" cy="16" r="14" fill="none" stroke="currentColor" stroke-width="2.4"/>
+          <path d="M9.5 16.5l4.5 4.5 8.5-10" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span>JudgeMint<span class="brand__ai">AI</span></span>
+      </a>
+      <nav class="nav" aria-label="Main">
+        <a href="/" data-link id="nav-audit">Audit</a>
+        <a href="/competitions" data-link id="nav-judge">Judge mode</a>
+        <a href="/#recent" data-link id="nav-recent">Recent audits</a>
+        <a href="/verify" data-link id="nav-verify">Verify a certificate</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" tabindex="-1">
+    <noscript><div class="wrap"><p class="alert">JudgeMintAI needs JavaScript. Turn it on and reload this page.</p></div></noscript>
+
+    <!-- 1. Intake -->
+    <section id="view-intake" class="view" hidden>
+      <div class="wrap hero">
+        <div class="hero__copy">
+          <h1>Audit your hackathon entry before the judges do.</h1>
+          <p class="lede">Paste your repo, demo and video. Five agents check the code, the PayPal integration, the AI, the rules and the paperwork, then hand back a score and a fix list.</p>
+          <dl class="agents">
+            <div><dt>Technical</dt><dd>Builds and runs, real commit history, no leaked keys</dd></div>
+            <div><dt>PayPal</dt><dd>Real sandbox calls and a full payment flow, not a mock</dd></div>
+            <div><dt>AI</dt><dd>A model that does real work inside the product</dd></div>
+            <div><dt>Legal</dt><dd>Public repo, open-source licence, video rules</dd></div>
+            <div><dt>Submission</dt><dd>Every item the rules ask you to hand in</dd></div>
+            <div><dt>Sponsor tools</dt><dd>Which sponsor tools you really use, and which claims have no code behind them</dd></div>
+          </dl>
+        </div>
+
+        <form id="audit-form" class="slip" novalidate>
+          <h2>Submission slip</h2>
+          <p class="slip__intro">Only the repository is required. Every extra detail lets one more agent check one more rule.</p>
+
+          <div class="field">
+            <label for="f-repo">Repository URL</label>
+            <input id="f-repo" name="repoUrl" type="url" inputmode="url" autocomplete="off" spellcheck="false" required placeholder="https://github.com/your-name/your-project" aria-describedby="h-repo">
+            <p class="hint" id="h-repo">Must be public. GitHub repositories get the deepest check.</p>
+          </div>
+
+          <div class="field">
+            <label for="f-name">Project name</label>
+            <input id="f-name" name="projectName" type="text" maxlength="80" autocomplete="off" placeholder="Taken from the repository if left empty">
+          </div>
+
+          <div class="row2">
+            <div class="field">
+              <label for="f-demo">Hosted demo URL</label>
+              <input id="f-demo" name="demoUrl" type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://your-app.onrender.com">
+            </div>
+            <div class="field">
+              <label for="f-video">Demo video on YouTube</label>
+              <input id="f-video" name="videoUrl" type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://www.youtube.com/watch?v=…">
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="f-desc">What it does</label>
+            <textarea id="f-desc" name="description" rows="5" maxlength="4000" placeholder="The problem, what the product does, and how PayPal and AI are used."></textarea>
+          </div>
+
+          <div class="field">
+            <label for="f-tools">Tools and models used, and what each one does</label>
+            <textarea id="f-tools" name="toolsUsed" rows="3" maxlength="2000" placeholder="Gemini 2.5 Flash: powers the judge agents. AG Grid: findings table. Render: hosting."></textarea>
+          </div>
+
+          <div class="field field--short">
+            <label for="f-start">Hackathon start date</label>
+            <input id="f-start" name="hackathonStart" type="date">
+            <p class="hint">Optional. Checks that you made real progress during the event.</p>
+          </div>
+
+          <p id="form-error" class="alert" role="alert" hidden></p>
+
+          <div class="slip__actions">
+            <button class="btn btn--primary" type="submit" id="run-audit">Run audit</button>
+            <button class="btn btn--quiet" type="button" id="fill-example">Try a public example</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="wrap">
+        <section class="block band" aria-labelledby="judge-band-title">
+          <div class="band__copy">
+            <h2 id="judge-band-title">Running the event? Judge every entry at once.</h2>
+            <p>Bring in the entries from a list, a CSV or a GitHub organisation. JudgeMintAI checks which are real, flags copies and fakes, scores each one on your criteria, explains every rank and pays the winners through PayPal. Judges keep the final say. It works for any hackathon or contest, on any topic.</p>
+          </div>
+          <a class="btn btn--primary" href="/competitions" data-link>Open Judge mode</a>
+        </section>
+      </div>
+
+      <div class="wrap">
+        <section id="recent" class="block" aria-labelledby="recent-title">
+          <h2 id="recent-title">Recent audits</h2>
+          <div id="recent-body"></div>
+        </section>
+      </div>
+    </section>
+
+    <!-- 2. Audit in progress -->
+    <section id="view-progress" class="view" hidden>
+      <div class="wrap narrow progress">
+        <h1 id="progress-title">Auditing your submission</h1>
+        <p class="lede" id="progress-sub">The agents read the repository, open your demo and check your video, then a head judge combines the results.</p>
+        <ul class="steps" id="steps" aria-live="polite"></ul>
+        <p class="alert" id="progress-error" role="alert" hidden></p>
+      </div>
+    </section>
+
+    <!-- 3. Report -->
+    <section id="view-report" class="view" hidden>
+      <div class="wrap" id="report-root"></div>
+    </section>
+
+    <!-- 5. Judge mode: competitions, leaderboard, entries (filled in by js/judge.js) -->
+    <section id="view-judge" class="view" hidden>
+      <div id="judge-root"></div>
+    </section>
+
+    <!-- 4. Verify a certificate -->
+    <section id="view-verify" class="view" hidden>
+      <div class="wrap narrow verify">
+        <h1>Verify a certificate</h1>
+        <p class="lede">Enter the serial printed on a JudgeMintAI certificate. We check the signature on the server.</p>
+        <form id="verify-form" class="inline-form" novalidate>
+          <label class="sr-only" for="v-serial">Certificate serial</label>
+          <input id="v-serial" name="serial" type="text" autocomplete="off" spellcheck="false" placeholder="JM-3F9A1C20B7D4">
+          <button class="btn btn--primary" type="submit">Check certificate</button>
+        </form>
+        <div id="verify-result" aria-live="polite"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <div class="wrap foot__in">
+      <p>JudgeMintAI is an unofficial project for the Build What’s Next with PayPal and AI hackathon. Payments run in PayPal’s sandbox, so no real money moves.</p>
+      <ul class="foot__status" id="foot-status" aria-label="Server status"></ul>
+    </div>
+  </footer>
+</body>
+</html>

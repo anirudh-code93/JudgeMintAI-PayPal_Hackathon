@@ -1,0 +1,813 @@
+{
+  "info": {
+    "name": "JudgeMintAI API",
+    "description": "Runs the whole JudgeMintAI flow. Part 1: health, config, start an audit, poll it, create a PayPal SANDBOX order, verify a certificate. Part 2, the folder 'Judge mode': create a competition, wait for the ranking, judge an entry, finalise, pay a prize through the PayPal Payouts sandbox, export the CSV. Start the server with `npm start` first. Set the collection variable organizerKey to the key the server prints (or your ORGANIZER_KEY), and winnerEmail to the email of a PayPal sandbox PERSONAL account. Run with Postman's collection runner or `npx newman run postman/JudgeMintAI.postman_collection.json --env-var organizerKey=<key> --env-var winnerEmail=<sandbox email>`.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000"
+    },
+    {
+      "key": "repoUrl",
+      "value": "https://github.com/paypal/agent-toolkit"
+    },
+    {
+      "key": "auditId",
+      "value": ""
+    },
+    {
+      "key": "orderId",
+      "value": ""
+    },
+    {
+      "key": "serial",
+      "value": ""
+    },
+    {
+      "key": "organizerKey",
+      "value": ""
+    },
+    {
+      "key": "winnerEmail",
+      "value": ""
+    },
+    {
+      "key": "repoUrl2",
+      "value": "https://github.com/paypal/paypal-js"
+    },
+    {
+      "key": "competitionId",
+      "value": ""
+    },
+    {
+      "key": "projectId",
+      "value": ""
+    },
+    {
+      "key": "prizeId",
+      "value": ""
+    },
+    {
+      "key": "winnerProjectId",
+      "value": ""
+    },
+    {
+      "key": "prizeAmount",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/api/health",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "health"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('server is healthy', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().ok).to.eql(true);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Public config (no secrets)",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/api/config",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "config"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('config is public-only', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const body = pm.response.json();",
+              "  pm.expect(body.paypal).to.have.property('enabled');",
+              "  pm.expect(body.paypal.toolkit).to.have.property('state');",
+              "  pm.expect(JSON.stringify(body)).to.not.include('secret');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Start an audit",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"projectName\": \"Postman example\",\n  \"repoUrl\": \"{{repoUrl}}\",\n  \"description\": \"Example submission started from Postman.\",\n  \"toolsUsed\": \"Postman: API collection.\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/audits",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "audits"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('audit accepted', function () {",
+              "  pm.response.to.have.status(202);",
+              "  const id = pm.response.json().id;",
+              "  pm.expect(id).to.match(/^[a-f0-9]{12}$/);",
+              "  pm.collectionVariables.set('auditId', id);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Get the audit (re-send until status is complete)",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/api/audits/{{auditId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "audits",
+            "{{auditId}}"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('audit has a status', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(['queued', 'running', 'complete', 'error']).to.include(pm.response.json().status);",
+              "});",
+              "if (pm.response.json().status === 'complete') {",
+              "  pm.test('report has a verdict and scored agents', function () {",
+              "    const r = pm.response.json().report;",
+              "    pm.expect(['PASS', 'NEEDS REVIEW', 'FAIL']).to.include(r.verdict);",
+              "    pm.expect(r.agents.length).to.be.above(4);",
+              "  });",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Recent audits",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/api/audits",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "audits"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('list returned', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().audits).to.be.an('array');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Create PayPal sandbox order (needs a complete, non-failing audit)",
+      "request": {
+        "method": "POST",
+        "url": {
+          "raw": "{{baseUrl}}/api/audits/{{auditId}}/pay/create",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "audits",
+            "{{auditId}}",
+            "pay",
+            "create"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('sandbox order created, or a clear reason why not', function () {",
+              "  if (pm.response.code === 200) {",
+              "    pm.collectionVariables.set('orderId', pm.response.json().orderId);",
+              "    pm.expect(pm.response.json().orderId).to.be.a('string');",
+              "  } else {",
+              "    pm.expect([409, 503]).to.include(pm.response.code);",
+              "    pm.expect(pm.response.json().error).to.be.a('string');",
+              "  }",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Capture an approved order (approve it in the PayPal popup first)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{ \"orderId\": \"{{orderId}}\" }"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/audits/{{auditId}}/pay/capture",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "audits",
+            "{{auditId}}",
+            "pay",
+            "capture"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('certificate issued, or PayPal explains why not', function () {",
+              "  if (pm.response.code === 200) {",
+              "    const cert = pm.response.json().certificate;",
+              "    pm.expect(cert.serial).to.match(/^JM-[A-F0-9]{12}$/);",
+              "    pm.collectionVariables.set('serial', cert.serial);",
+              "  } else {",
+              "    pm.expect([400, 402, 502]).to.include(pm.response.code);",
+              "  }",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Verify a certificate",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/api/certificates/{{serial}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "certificates",
+            "{{serial}}"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('known serial verifies, unknown serial is 404', function () {",
+              "  if (pm.response.code === 200) pm.expect(pm.response.json().valid).to.eql(true);",
+              "  else pm.response.to.have.status(404);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Judge mode (needs the organiser key)",
+      "description": "Run these top to bottom. The competition is created and evaluated, then the prize is paid in the PayPal SANDBOX with test money. Set organizerKey and winnerEmail (a sandbox personal account) in the collection variables first. If both entries fail the audit (for example when you swap in other repositories), Finalise answers 409 'No entry can be ranked yet': use repositories that really call the technology named in the rules, or change the rules.",
+      "item": [
+        {
+          "name": "Organiser key check (expects 200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Organizer-Key",
+                "value": "{{organizerKey}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/organizer/check",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "organizer",
+                "check"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('the organiser key is accepted', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().ok).to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "A wrong organiser key is refused (expects 401)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Organizer-Key",
+                "value": "not-the-key"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/organizer/check",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "organizer",
+                "check"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('a wrong key is refused', function () {",
+                  "  pm.response.to.have.status(401);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create a competition and start evaluating",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Organizer-Key",
+                "value": "{{organizerKey}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/competitions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "competitions"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman Cup\",\n  \"preset\": \"generic\",\n  \"judge\": \"Postman\",\n  \"maxProjects\": 2,\n  \"rules\": {\n    \"theme\": \"Developer tools for online payments\",\n    \"requiredTech\": [\"PayPal\"],\n    \"techMode\": \"any\",\n    \"requireSandbox\": false,\n    \"requireLicense\": true,\n    \"requireDemoOrRunSteps\": true,\n    \"customRules\": [\"Entries must have a README\"],\n    \"complianceWeight\": 0.2\n  },\n  \"prizes\": [\n    { \"label\": \"First prize\", \"amount\": \"10.00\", \"currency\": \"USD\", \"place\": 1 }\n  ],\n  \"import\": {\n    \"json\": [\n      { \"name\": \"Agent Toolkit\", \"repo\": \"{{repoUrl}}\", \"email\": \"{{winnerEmail}}\", \"description\": \"PayPal's toolkit for AI agents.\", \"tools\": \"PayPal: orders and invoices\" },\n      { \"name\": \"PayPal JS\", \"repo\": \"{{repoUrl2}}\", \"email\": \"{{winnerEmail}}\", \"description\": \"Loads the PayPal JavaScript SDK.\", \"tools\": \"PayPal: checkout buttons\" }\n    ]\n  },\n  \"start\": true\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('competition created', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "  const c = pm.response.json().competition;",
+                  "  pm.expect(c.id).to.match(/^[a-f0-9]{12}$/);",
+                  "  pm.expect(c.projects.length).to.be.above(0);",
+                  "  pm.collectionVariables.set('competitionId', c.id);",
+                  "  pm.collectionVariables.set('projectId', c.projects[0].id);",
+                  "  pm.collectionVariables.set('prizeId', c.prizes[0].id);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get the competition (re-send until status is ready)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Organizer-Key",
+                "value": "{{organizerKey}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/competitions/{{competitionId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "competitions",
+                "{{competitionId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('competition has a status', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(['draft', 'ready', 'evaluating', 'finalised']).to.include(pm.response.json().competition.status);",
+                  "});",
+                  "const c = pm.response.json().competition;",
+                  "if (c.status === 'ready') {",
+                  "  pm.test('every entry was evaluated and ranked entries explain their rank', function () {",
+                  "    pm.expect(c.projects.every(function (p) { return p.status === 'done' || p.status === 'error'; })).to.eql(true);",
+                  "    c.projects.filter(function (p) { return p.rank != null; }).forEach(function (p) { pm.expect(p.why).to.be.a('string').and.not.empty; });",
+                  "  });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Judge an entry: adjust a score and comment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Organizer-Key",
+                "value": "{{organizerKey}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/competitions/{{competitionId}}/projects/{{projectId}}/judge",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "competitions",
+                "{{competitionId}}",
+                "projects",
+                "{{projectId}}",
+                "judge"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"judge\": \"Postman\",\n  \"adjustments\": {\n    \"creativity\": {\n      \"delta\": 1,\n      \"note\": \"Nice touch\"\n    }\n  },\n  \"comment\": \"Checked from Postman.\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('judge decision saved', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  const p = pm.response.json().competition.projects.find(function (x) { return x.id === pm.collectionVariables.get('projectId'); });",
+                  "  pm.expect(p.judge.adjustments.creativity.delta).to.eql(1);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Finalise the judgement",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Organizer-Key",
+                "value": "{{organizerKey}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/competitions/{{competitionId}}/finalise",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "competitions",
+                "{{competitionId}}",
+                "finalise"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"judge\": \"Postman\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('judgement is final and the prize has a winner', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  const c = pm.response.json().competition;",
+                  "  pm.expect(c.status).to.eql('finalised');",
+                  "  const z = c.prizes[0];",
+                  "  pm.expect(z.recipientId).to.be.a('string');",
+                  "  pm.collectionVariables.set('winnerProjectId', z.recipientId);",
+                  "  pm.collectionVariables.set('prizeAmount', z.amount);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Pay the first prize through PayPal Payouts (SANDBOX)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Organizer-Key",
+                "value": "{{organizerKey}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/competitions/{{competitionId}}/prizes/{{prizeId}}/pay",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "competitions",
+                "{{competitionId}}",
+                "prizes",
+                "{{prizeId}}",
+                "pay"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"judge\": \"Postman\",\n  \"confirm\": true,\n  \"expected\": {\n    \"amount\": \"{{prizeAmount}}\",\n    \"currency\": \"USD\",\n    \"email\": \"{{winnerEmail}}\",\n    \"projectId\": \"{{winnerProjectId}}\"\n  }\n}"
+            },
+            "description": "Sends test money from your PayPal sandbox business account to winnerEmail. The body must repeat exactly what the server holds for the prize, or the server refuses."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('the payout was sent to PayPal', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(['sent', 'paid', 'unclaimed']).to.include(pm.response.json().prize.status);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Check the payment with PayPal",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Organizer-Key",
+                "value": "{{organizerKey}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/competitions/{{competitionId}}/prizes/{{prizeId}}/refresh",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "competitions",
+                "{{competitionId}}",
+                "prizes",
+                "{{prizeId}}",
+                "refresh"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"judge\": \"Postman\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('PayPal reports a state for the payout', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(['sent', 'paid', 'unclaimed']).to.include(pm.response.json().prize.status);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Export the results as CSV",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Organizer-Key",
+                "value": "{{organizerKey}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/competitions/{{competitionId}}/export.csv",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "competitions",
+                "{{competitionId}}",
+                "export.csv"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('CSV with a header row', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.headers.get('Content-Type')).to.include('text/csv');",
+                  "  pm.expect(pm.response.text().split('\\n')[0]).to.include('rank,project');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "All competitions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Organizer-Key",
+                "value": "{{organizerKey}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/competitions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "competitions"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('lists competitions', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().competitions).to.be.an('array');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
